@@ -1,0 +1,40 @@
+<template>
+  <svg :width="size" :height="size" viewBox="0 0 16 16" fill="none">
+    <rect
+      x="4"
+      y="1"
+      width="8"
+      height="5"
+      rx="1"
+      fill="currentColor"
+      opacity="0.5"
+    />
+    <line
+      x1="1"
+      y1="8.5"
+      x2="15"
+      y2="8.5"
+      stroke="currentColor"
+      stroke-width="1.3"
+    />
+    <line
+      x1="3"
+      y1="11"
+      x2="13"
+      y2="11"
+      stroke="currentColor"
+      stroke-width="1.3"
+    />
+    <line
+      x1="1"
+      y1="13.5"
+      x2="15"
+      y2="13.5"
+      stroke="currentColor"
+      stroke-width="1.3"
+    />
+  </svg>
+</template>
+<script setup>
+defineProps({ size: { type: [Number, String], default: 14 } });
+</script>
