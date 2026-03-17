@@ -65,6 +65,17 @@
 
     <span class="ve-sp-divider"></span>
 
+    <span class="ve-sp-divider"></span>
+
+    <ColorPicker
+      :model-value="fgColor"
+      title="Text color"
+      :dark="dark"
+      panel-position="above"
+      @update:model-value="$emit('text-color', $event)"
+    >
+      <IconTextColor :size="15" :color="fgColor" />
+    </ColorPicker>
     <button class="ve-sp-btn" title="Highlight" @click="$emit('highlight')">
       <IconHighlightMarker :size="15" />
     </button>
@@ -89,12 +100,15 @@ import {
   IconFontIncrease,
   IconHighlightMarker,
   IconClearFormat,
+  IconTextColor,
 } from "../../assets/icons";
+import ColorPicker from "./ColorPicker.vue";
 
 defineProps({
   popover: { type: Object, required: true },
   activeFormats: { type: Object, required: true },
   currentFontSize: { type: String, default: "" },
+  fgColor: { type: String, default: "#000000" },
   dark: { type: Boolean, default: false },
 });
 
@@ -104,5 +118,6 @@ defineEmits([
   "font-size-up",
   "font-size-down",
   "highlight",
+  "text-color",
 ]);
 </script>

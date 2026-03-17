@@ -129,62 +129,40 @@
 
     <!-- Colors -->
     <div class="ve-toolbar-group">
-      <div class="ve-color-btn-wrap" title="Text color">
-        <button
-          class="ve-btn"
-          @mousedown.prevent
-          @click="$refs.fgColor.click()"
-        >
-          <span class="ve-btn-icon">
-            <IconTextColor :size="16" :color="fgColor" />
-          </span>
-        </button>
-        <input
-          ref="fgColor"
-          type="color"
-          class="ve-color-input"
-          :value="fgColor"
-          @input="$emit('fg-color', $event.target.value)"
-        />
-      </div>
+      <ColorPicker
+        :model-value="fgColor"
+        title="Text color"
+        :dark="dark"
+        panel-position="below"
+        @update:model-value="$emit('fg-color', $event)"
+      >
+        <span class="ve-btn-icon">
+          <IconTextColor :size="16" :color="fgColor" />
+        </span>
+      </ColorPicker>
 
-      <div class="ve-color-btn-wrap" title="Highlight color">
-        <button
-          class="ve-btn"
-          @mousedown.prevent
-          @click="$refs.bgColor.click()"
-        >
-          <span class="ve-btn-icon">
-            <IconHighlight :size="16" :color="bgColor" />
-          </span>
-        </button>
-        <input
-          ref="bgColor"
-          type="color"
-          class="ve-color-input"
-          :value="bgColor"
-          @input="$emit('bg-color', $event.target.value)"
-        />
-      </div>
+      <button
+        class="ve-btn"
+        title="Highlight"
+        @mousedown.prevent
+        @click="$emit('bg-color', '#ffe066')"
+      >
+        <span class="ve-btn-icon">
+          <IconHighlight :size="16" color="#ffe066" />
+        </span>
+      </button>
 
-      <div class="ve-color-btn-wrap" title="Block background color">
-        <button
-          class="ve-btn"
-          @mousedown.prevent
-          @click="$refs.blockBgColor.click()"
-        >
-          <span class="ve-btn-icon">
-            <IconBlockBackground :size="16" :color="blockBgColor" />
-          </span>
-        </button>
-        <input
-          ref="blockBgColor"
-          type="color"
-          class="ve-color-input"
-          :value="blockBgColor"
-          @input="$emit('block-bg-color', $event.target.value)"
-        />
-      </div>
+      <ColorPicker
+        :model-value="blockBgColor"
+        title="Block background color"
+        :dark="dark"
+        panel-position="below"
+        @update:model-value="$emit('block-bg-color', $event)"
+      >
+        <span class="ve-btn-icon">
+          <IconBlockBackground :size="16" :color="blockBgColor" />
+        </span>
+      </ColorPicker>
 
       <button
         class="ve-btn"
@@ -309,6 +287,7 @@
 
 <script setup>
 import { markRaw } from "vue";
+import ColorPicker from "./ColorPicker.vue";
 import {
   IconBold,
   IconItalic,
@@ -337,9 +316,9 @@ defineProps({
   currentFontSize: { type: String, default: "" },
   currentFontFamily: { type: String, default: "" },
   fgColor: { type: String, default: "#000000" },
-  bgColor: { type: String, default: "#ffff00" },
   blockBgColor: { type: String, default: "#ffffff" },
   spacingActive: { type: Boolean, default: false },
+  dark: { type: Boolean, default: false },
 });
 
 defineEmits([

@@ -1,15 +1,14 @@
 <template>
-  <div
-    v-if="popover.visible"
-    class="ve-spacing-popover"
-    :class="{ dark }"
-    @mousedown.prevent
-  >
+  <div class="ve-spacing-popover" :class="{ dark }" @mousedown.prevent>
     <div class="ve-spacing-header-row">
       <span class="ve-spacing-header">{{
-        popover.isHR ? "Divider" : "Block"
+        popover.visible ? (popover.isHR ? "Divider" : "Block") : "Block"
       }}</span>
-      <div class="ve-spacing-header-actions" @mousedown.stop.prevent>
+      <div
+        v-if="popover.visible"
+        class="ve-spacing-header-actions"
+        @mousedown.stop.prevent
+      >
         <button
           class="ve-spacing-icon-btn"
           title="Insert block above"
@@ -41,7 +40,16 @@
         </button>
       </div>
     </div>
-    <div class="ve-spacing-scroll-area">
+
+    <!-- No block selected placeholder -->
+    <div v-if="!popover.visible" class="ve-spacing-empty">
+      <p>No block selected</p>
+      <p class="ve-spacing-empty-hint">
+        Click on any element in the editor to inspect and edit its properties.
+      </p>
+    </div>
+
+    <div v-else class="ve-spacing-scroll-area">
       <!-- Text alignment (not for HR) -->
       <div v-if="!popover.isHR" class="ve-spacing-section">
         <div class="ve-spacing-label">Horizontal Align</div>
@@ -392,6 +400,30 @@
         </div>
       </div>
 
+      <!-- Margin -->
+      <div class="ve-spacing-section">
+        <div class="ve-spacing-label">Margin (px)</div>
+        <div class="ve-figma-row">
+          <div
+            v-for="s in marginFields"
+            :key="s.prop"
+            class="ve-figma-field"
+            :title="s.title"
+          >
+            <span class="ve-figma-icon">{{ s.label }}</span>
+            <input
+              class="ve-figma-input"
+              type="number"
+              :value="popover[s.prop]"
+              @input="$emit('spacing-drag', $event, s.prop)"
+              @mousedown.stop
+              @change="$emit('spacing-change', $event, s.prop)"
+              placeholder="0"
+            />
+          </div>
+        </div>
+      </div>
+
       <!-- Border -->
       <div class="ve-spacing-section">
         <div class="ve-spacing-label">Border</div>
@@ -472,19 +504,18 @@
             </select>
           </div>
           <div class="ve-figma-field ve-figma-field-color" title="Border color">
-            <div
-              class="ve-figma-color-swatch"
-              :style="{ backgroundColor: popover.borderColor }"
-              @click="$refs.borderColorInput?.click()"
-            ></div>
-            <input
-              ref="borderColorInput"
-              type="color"
-              class="ve-figma-color-hidden"
-              :value="popover.borderColor"
-              @input="$emit('border-color', $event)"
-              @mousedown.stop
-            />
+            <ColorPicker
+              :model-value="popover.borderColor"
+              title="Border color"
+              :dark="dark"
+              panel-position="below-right"
+              @update:model-value="$emit('border-color', $event)"
+            >
+              <div
+                class="ve-figma-color-swatch"
+                :style="{ backgroundColor: popover.borderColor }"
+              ></div>
+            </ColorPicker>
           </div>
         </div>
         <div class="ve-spacing-label" style="margin-top: 4px">Radius</div>
@@ -541,6 +572,36 @@
               placeholder="0"
             />
           </div>
+        </div>
+      </div>
+
+      <!-- Background Color -->
+      <div v-if="!popover.isHR" class="ve-spacing-section">
+        <div class="ve-spacing-label">Background Color</div>
+        <div class="ve-figma-row" style="align-items: center; gap: 6px">
+          <ColorPicker
+            :model-value="popover.bgColor || '#ffffff'"
+            title="Block background color"
+            :dark="dark"
+            panel-position="below-right"
+            @update:model-value="$emit('block-bg-color', $event)"
+          >
+            <div
+              class="ve-figma-color-swatch"
+              :style="{ backgroundColor: popover.bgColor || 'transparent' }"
+            ></div>
+          </ColorPicker>
+          <span style="font-size: 10px; color: #888">{{
+            popover.bgColor || "none"
+          }}</span>
+          <button
+            v-if="popover.bgColor"
+            class="ve-spacing-reset-btn"
+            style="margin-left: auto; font-size: 10px; padding: 2px 6px"
+            @click="$emit('block-bg-color', '')"
+          >
+            Clear
+          </button>
         </div>
       </div>
 
@@ -649,30 +710,6 @@
         </div>
       </div>
 
-      <!-- Margin -->
-      <div class="ve-spacing-section">
-        <div class="ve-spacing-label">Margin (px)</div>
-        <div class="ve-figma-row">
-          <div
-            v-for="s in marginFields"
-            :key="s.prop"
-            class="ve-figma-field"
-            :title="s.title"
-          >
-            <span class="ve-figma-icon">{{ s.label }}</span>
-            <input
-              class="ve-figma-input"
-              type="number"
-              :value="popover[s.prop]"
-              @input="$emit('spacing-drag', $event, s.prop)"
-              @mousedown.stop
-              @change="$emit('spacing-change', $event, s.prop)"
-              placeholder="0"
-            />
-          </div>
-        </div>
-      </div>
-
       <div class="ve-spacing-actions">
         <button class="ve-spacing-reset-btn" @click="$emit('reset')">
           Reset All
@@ -684,6 +721,7 @@
 
 <script setup>
 import { computed, markRaw } from "vue";
+import ColorPicker from "./ColorPicker.vue";
 import {
   IconInsertAbove,
   IconInsertBelow,
@@ -731,6 +769,7 @@ defineEmits([
   "bg-repeat",
   "bg-opacity",
   "bg-remove",
+  "block-bg-color",
   "reset",
 ]);
 

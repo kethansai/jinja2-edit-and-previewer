@@ -6,6 +6,25 @@
         Preview
       </span>
       <div class="preview-actions">
+        <el-tooltip
+          :content="
+            showConfigure
+              ? 'Hide variables & filters'
+              : 'Show variables & filters'
+          "
+          placement="bottom"
+        >
+          <el-button
+            size="small"
+            :type="showConfigure ? 'primary' : 'default'"
+            plain
+            @click="$emit('toggle-configure')"
+            class="configure-btn"
+          >
+            <el-icon style="margin-right: 4px"><Setting /></el-icon>
+            Configure
+          </el-button>
+        </el-tooltip>
         <el-tooltip content="Refresh preview" placement="bottom">
           <el-button
             size="small"
@@ -82,13 +101,17 @@ import {
   View,
   WarningFilled,
   Refresh as RefreshIcon,
+  Setting,
 } from "@element-plus/icons-vue";
 
 const props = defineProps({
   output: { type: String, default: "" },
   error: { type: String, default: null },
   dark: { type: Boolean, default: false },
+  showConfigure: { type: Boolean, default: true },
 });
+
+defineEmits(["toggle-configure"]);
 
 const mode = ref("html");
 const iframeRef = ref(null);
@@ -109,14 +132,55 @@ const isHtmlContent = computed(() => {
   return /<[a-z][\s\S]*?>/i.test(trimmed);
 });
 
+const MARGIN_BLOCK_TAGS =
+  /^(p|h[1-6]|ul|ol|blockquote|pre|figure|figcaption|dl|dd)(\s|>|\/)/i;
+
+/**
+ * Inject inline margin:0 on block-level elements that don't already have margin in their style.
+ * This ensures email-safe output even when previewing code-mode templates.
+ */
+function inlineMarginReset(html) {
+  return html
+    .replace(
+      /<(p|h[1-6]|ul|ol|blockquote|pre|figure|figcaption|dl|dd)([\s>\/])/gi,
+      (match, tag, after) => {
+        // If followed by attributes, check if there's already a style with margin
+        // We need to look ahead to see if there's a style attribute with margin
+        return match;
+      },
+    )
+    .replace(
+      /<(p|h[1-6]|ul|ol|blockquote|pre|figure|figcaption|dl|dd)(\s[^>]*)?(>)/gi,
+      (match, tag, attrs, close) => {
+        attrs = attrs || "";
+        if (/style\s*=\s*["'][^"']*margin/i.test(attrs)) {
+          // Already has margin in inline style, leave as is
+          return match;
+        }
+        if (/style\s*=\s*"/i.test(attrs)) {
+          // Has style attribute, append margin:0
+          return `<${tag}${attrs.replace(/style\s*=\s*"/i, 'style="margin:0;')}${close}`;
+        }
+        if (/style\s*=\s*'/i.test(attrs)) {
+          return `<${tag}${attrs.replace(/style\s*=\s*'/i, "style='margin:0;")}${close}`;
+        }
+        // No style attribute, add one
+        return `<${tag}${attrs} style="margin:0"${close}`;
+      },
+    );
+}
+
 const iframeSrcdoc = computed(() => {
   const bgColor = props.dark ? "#1a1a2e" : "#ffffff";
   const textColor = props.dark ? "#e0e0e0" : "#333333";
-  const content = props.output
+  const rawContent = props.output
     ? isHtmlContent.value
       ? props.output
       : `<pre style="margin:0;white-space:pre-wrap;word-wrap:break-word;font-family:'Cascadia Code','Fira Code','JetBrains Mono',Consolas,monospace;font-size:13px;">${props.output.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`
-    : '<p style="color: #999;">Preview will appear here...</p>';
+    : '<p style="margin:0;color: #999;">Preview will appear here...</p>';
+  const content = isHtmlContent.value
+    ? inlineMarginReset(rawContent)
+    : rawContent;
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -131,8 +195,23 @@ const iframeSrcdoc = computed(() => {
       line-height: 1.6;
     }
     img { max-width: 100%; height: auto; display: block; }
-    p { margin: 0; }
+    p, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, pre, figure, figcaption, dl, dd { margin: 0; }
     table { border-collapse: collapse; }
+    .ve-has-bg { position: relative; }
+    .ve-has-bg::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: var(--bg-image);
+      background-size: var(--bg-size, cover);
+      background-position: var(--bg-position, center);
+      background-repeat: var(--bg-repeat, no-repeat);
+      opacity: var(--bg-opacity, 1);
+      pointer-events: none;
+      z-index: 0;
+      border-radius: inherit;
+    }
+    .ve-has-bg > * { position: relative; z-index: 1; }
   </style>
 </head>
 <body>${content}</body>
@@ -170,6 +249,10 @@ const iframeSrcdoc = computed(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.configure-btn {
+  font-size: 12px;
 }
 
 .preview-body {

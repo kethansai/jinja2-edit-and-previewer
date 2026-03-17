@@ -6,9 +6,9 @@
       :current-font-size="currentFontSize"
       :current-font-family="currentFontFamily"
       :fg-color="currentFgColor"
-      :bg-color="currentBgColor"
       :block-bg-color="currentBlockBgColor"
       :spacing-active="spacingPopover.visible"
+      :dark="dark"
       @exec-cmd="execCmd"
       @block-format="onBlockFormatValue"
       @font-family="onFontFamilyValue"
@@ -34,6 +34,10 @@
         :selected-el="spacingPopover.el"
         :dark="dark"
         @select-block="onTreeSelectBlock"
+        @delete-blocks="onTreeDeleteBlocks"
+        @move-blocks="onTreeMoveBlocks"
+        @group-blocks="onTreeGroupBlocks"
+        @add-block="onTreeAddBlock"
         @refresh="refreshTree"
       />
 
@@ -144,6 +148,7 @@
         @bg-repeat="onBgRepeatChange"
         @bg-opacity="onBgOpacityChange"
         @bg-remove="onBgRemove"
+        @block-bg-color="onBlockBgColorFromPopover"
         @reset="resetSpacing"
       />
     </div>
@@ -153,12 +158,14 @@
       :popover="selPopover"
       :active-formats="activeFormats"
       :current-font-size="currentFontSize"
+      :fg-color="currentFgColor"
       :dark="dark"
       @cmd="popoverCmd"
       @insert-link="popoverInsertLink"
       @font-size-up="popoverFontSizeUp"
       @font-size-down="popoverFontSizeDown"
       @highlight="popoverHighlight"
+      @text-color="popoverTextColor"
     />
 
     <!-- Link Tooltip -->
@@ -167,25 +174,26 @@
       :dark="dark"
       @edit="editLinkFromTooltip"
       @remove="removeLinkFromTooltip"
+      @toggle-underline="toggleLinkUnderline"
     />
 
     <!-- Image Popover -->
     <ImagePopover
       :popover="imgPopover"
       :dark="dark"
-      @resize="imgResize"
       @set-width="imgSetExactWidth"
       @set-height="imgSetExactHeight"
-      @set-width-pct="imgSetWidth"
       @set-align="imgSetAlign"
       @replace="imgReplace"
       @delete="imgDelete"
+      @toggle-lock="imgPopover.lockRatio = !imgPopover.lockRatio"
+      @toggle-unit="imgToggleUnit"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, nextTick, reactive } from "vue";
+import { ref, computed, watch, onMounted, nextTick, reactive } from "vue";
 import { openModal } from "../composables/useModal";
 import {
   EditorToolbar,
@@ -208,6 +216,7 @@ import {
 const props = defineProps({
   modelValue: { type: String, default: "" },
   dark: { type: Boolean, default: false },
+  showLayers: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(["update:modelValue"]);
@@ -216,13 +225,189 @@ const editableRef = ref(null);
 const dragHandleRef = ref(null);
 const blockTreeRef = ref(null);
 const contentVersion = ref(0);
-const treeVisible = ref(true);
+const treeVisible = computed(() => props.showLayers);
 const currentFgColor = ref("#000000");
 const currentBgColor = ref("#ffff00");
 const currentBlockBgColor = ref("#ffffff");
 const currentFontSize = ref("");
 const currentFontFamily = ref("");
 const isInternalUpdate = ref(false);
+
+// Pre-process HTML to convert block tags that contain block-level children into <div>.
+// Browsers auto-correct invalid nesting (e.g. <p><p>...</p></p>) by splitting them,
+// which destroys the intended structure. Converting to <div> preserves nesting.
+// This uses a STRING-BASED tokenizer to avoid DOMParser which itself flattens the HTML.
+
+// Tags that cannot contain block-level elements per HTML spec
+const CANT_CONTAIN_BLOCKS = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6"]);
+
+// Tags considered block-level (their presence as a child triggers conversion)
+const BLOCK_TAGS = new Set([
+  "p",
+  "div",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "blockquote",
+  "pre",
+  "ul",
+  "ol",
+  "table",
+  "section",
+  "article",
+  "header",
+  "footer",
+  "hr",
+  "figure",
+  "nav",
+  "main",
+  "aside",
+  "dl",
+  "form",
+  "fieldset",
+  "address",
+  "details",
+  "dialog",
+  "hgroup",
+  "menu",
+]);
+
+const SC_TAGS = new Set([
+  "area",
+  "base",
+  "br",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "param",
+  "source",
+  "track",
+  "wbr",
+]);
+
+function sanitizeNestedBlocks(html) {
+  if (!html) return html;
+
+  // Tokenize into HTML tags, Jinja tags, comments, and text
+  const tokens = [];
+  let pos = 0;
+  while (pos < html.length) {
+    // Jinja comment {# ... #}
+    if (html.startsWith("{#", pos)) {
+      const end = html.indexOf("#}", pos + 2);
+      const slice = end === -1 ? html.slice(pos) : html.slice(pos, end + 2);
+      tokens.push({ type: "jinja", raw: slice });
+      pos += slice.length;
+      continue;
+    }
+    // Jinja block {% ... %} or expression {{ ... }}
+    if (html.startsWith("{%", pos) || html.startsWith("{{", pos)) {
+      const closer = html[pos + 1] === "%" ? "%}" : "}}";
+      const end = html.indexOf(closer, pos + 2);
+      const slice = end === -1 ? html.slice(pos) : html.slice(pos, end + 2);
+      tokens.push({ type: "jinja", raw: slice });
+      pos += slice.length;
+      continue;
+    }
+    // HTML comment
+    if (html.startsWith("<!--", pos)) {
+      const end = html.indexOf("-->", pos + 4);
+      const slice = end === -1 ? html.slice(pos) : html.slice(pos, end + 3);
+      tokens.push({ type: "comment", raw: slice });
+      pos += slice.length;
+      continue;
+    }
+    // HTML tag
+    if (html[pos] === "<") {
+      const end = html.indexOf(">", pos);
+      if (end === -1) {
+        tokens.push({ type: "text", raw: html.slice(pos) });
+        break;
+      }
+      const raw = html.slice(pos, end + 1);
+      const isClose = raw[1] === "/";
+      const selfClose = raw[raw.length - 2] === "/";
+      const nameMatch = raw.match(
+        isClose ? /^<\/\s*(\w[\w-]*)/ : /^<\s*(\w[\w-]*)/,
+      );
+      const tag = nameMatch ? nameMatch[1].toLowerCase() : "";
+      if (isClose) {
+        tokens.push({ type: "close", tag, raw });
+      } else {
+        const isSC = selfClose || SC_TAGS.has(tag);
+        tokens.push({ type: isSC ? "selfclose" : "open", tag, raw });
+      }
+      pos = end + 1;
+      continue;
+    }
+    // Text content
+    let nextSpecial = html.length;
+    for (const marker of ["<", "{%", "{{", "{#"]) {
+      const idx = html.indexOf(marker, pos);
+      if (idx !== -1 && idx < nextSpecial) nextSpecial = idx;
+    }
+    tokens.push({ type: "text", raw: html.slice(pos, nextSpecial) });
+    pos = nextSpecial;
+  }
+
+  // Stack-based analysis: find block tags that can't contain blocks but do
+  const stack = []; // { tag, openTokenIndex, hasBlockChild }
+  const toReplace = new Set(); // token indices of open/close tags to convert
+
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i];
+    if (tok.type === "open") {
+      stack.push({ tag: tok.tag, idx: i, hasBlockChild: false });
+    } else if (tok.type === "close") {
+      for (let j = stack.length - 1; j >= 0; j--) {
+        if (stack[j].tag === tok.tag) {
+          const entry = stack[j];
+          if (entry.hasBlockChild && CANT_CONTAIN_BLOCKS.has(entry.tag)) {
+            toReplace.add(entry.idx);
+            toReplace.add(i);
+          }
+          stack.splice(j, 1);
+          break;
+        }
+      }
+    }
+    // Mark parent as having a block child
+    if (
+      (tok.type === "open" || tok.type === "selfclose") &&
+      BLOCK_TAGS.has(tok.tag)
+    ) {
+      if (stack.length > 0) {
+        stack[stack.length - 1].hasBlockChild = true;
+      }
+    }
+  }
+
+  if (toReplace.size === 0) return html;
+
+  // Rebuild HTML, replacing affected tags with <div> / </div>
+  let result = "";
+  for (let i = 0; i < tokens.length; i++) {
+    if (toReplace.has(i)) {
+      const tok = tokens[i];
+      if (tok.type === "open") {
+        // Replace tag name but preserve attributes
+        result += tok.raw.replace(/^<\s*\w[\w-]*/, "<div");
+      } else {
+        result += "</div>";
+      }
+    } else {
+      result += tokens[i].raw;
+    }
+  }
+  return result;
+}
 
 // Custom undo/redo stack for operations that bypass execCommand (e.g., image resize)
 const undoStack = ref([]);
@@ -276,6 +461,8 @@ const spacingPopover = reactive({
   bgPosition: "center",
   bgRepeat: "no-repeat",
   bgOpacity: 1,
+  // Background color
+  bgColor: "",
 });
 
 // Hover drag handle state
@@ -300,6 +487,7 @@ const linkTooltip = reactive({
   top: 0,
   left: 0,
   anchor: null,
+  underline: true,
 });
 
 // Image edit icon state (shown on image click before entering full edit)
@@ -318,6 +506,8 @@ const imgPopover = reactive({
   width: 0,
   height: 0,
   widthPct: 0,
+  heightPct: 0,
+  unit: "px",
   align: "",
   lockRatio: false,
   el: null,
@@ -336,14 +526,17 @@ watch(
   (val) => {
     if (isInternalUpdate.value) return;
     if (editableRef.value && val !== editableRef.value.innerHTML) {
-      editableRef.value.innerHTML = val || "";
+      editableRef.value.innerHTML = sanitizeNestedBlocks(val || "");
+      nextTick(() => {
+        contentVersion.value++;
+      });
     }
   },
 );
 
 onMounted(() => {
   if (editableRef.value) {
-    editableRef.value.innerHTML = props.modelValue || "";
+    editableRef.value.innerHTML = sanitizeNestedBlocks(props.modelValue || "");
   }
   // Initial tree build after DOM is ready
   nextTick(() => {
@@ -645,8 +838,94 @@ function onTreeSelectBlock(el) {
   el.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
+function onTreeAddBlock(el) {
+  if (!el || !editableRef.value?.contains(el)) return;
+  saveSnapshot();
+  const div = document.createElement("div");
+  div.innerHTML = "<br>";
+  if (el.nextSibling) {
+    el.parentNode.insertBefore(div, el.nextSibling);
+  } else {
+    el.parentNode.appendChild(div);
+  }
+  emitContent();
+  nextTick(() => selectBlock(div));
+}
+
 function refreshTree() {
   contentVersion.value++;
+}
+
+// --- Tree: multi-delete ---
+function onTreeDeleteBlocks(els) {
+  if (!els?.length || !editableRef.value) return;
+  saveSnapshot();
+  for (const el of els) {
+    if (editableRef.value.contains(el)) {
+      el.remove();
+    }
+  }
+  hideSpacingPopover();
+  if (!editableRef.value.innerHTML.trim()) {
+    editableRef.value.innerHTML = "<p><br></p>";
+  }
+  emitContent();
+}
+
+// --- Tree: drag-and-drop reorder ---
+function onTreeMoveBlocks({ draggedEls, targetEl, position }) {
+  if (!editableRef.value || !targetEl || !draggedEls?.length) return;
+  if (!editableRef.value.contains(targetEl)) return;
+  // Don't allow moving a parent into its own child
+  for (const el of draggedEls) {
+    if (el.contains(targetEl)) return;
+  }
+  saveSnapshot();
+  // Sort dragged elements in DOM order to preserve relative order
+  const allNodes = [...editableRef.value.querySelectorAll("*")];
+  draggedEls.sort((a, b) => allNodes.indexOf(a) - allNodes.indexOf(b));
+
+  if (position === "before") {
+    for (const el of draggedEls) {
+      targetEl.parentNode.insertBefore(el, targetEl);
+    }
+  } else if (position === "after") {
+    let ref = targetEl;
+    for (const el of draggedEls) {
+      if (ref.nextSibling) {
+        ref.parentNode.insertBefore(el, ref.nextSibling);
+      } else {
+        ref.parentNode.appendChild(el);
+      }
+      ref = el;
+    }
+  } else if (position === "inside") {
+    for (const el of draggedEls) {
+      targetEl.appendChild(el);
+    }
+  }
+  emitContent();
+}
+
+// --- Tree: group selected blocks ---
+function onTreeGroupBlocks(els) {
+  if (!els?.length || els.length < 2 || !editableRef.value) return;
+  saveSnapshot();
+  // Sort by DOM order
+  const allNodes = [...editableRef.value.querySelectorAll("*")];
+  els.sort((a, b) => allNodes.indexOf(a) - allNodes.indexOf(b));
+  // Verify all elements are siblings
+  const parent = els[0].parentNode;
+  const allSiblings = els.every((el) => el.parentNode === parent);
+  if (!allSiblings) return; // Can only group siblings
+  // Insert wrapper before first element
+  const wrapper = document.createElement("div");
+  parent.insertBefore(wrapper, els[0]);
+  for (const el of els) {
+    wrapper.appendChild(el);
+  }
+  emitContent();
+  nextTick(() => selectBlock(wrapper));
 }
 
 function toggleSpacingPopover() {
@@ -746,6 +1025,13 @@ function detectBlockSpacing(block) {
   const opacityVar = block.style.getPropertyValue("--bg-opacity");
   spacingPopover.bgOpacity =
     opacityVar !== "" ? parseFloat(opacityVar) || 1 : 1;
+  // Background color
+  const rawBg = cs.backgroundColor;
+  if (rawBg && rawBg !== "rgba(0, 0, 0, 0)" && rawBg !== "transparent") {
+    spacingPopover.bgColor = rgbToHex(rawBg) || "";
+  } else {
+    spacingPopover.bgColor = "";
+  }
 }
 
 function onSpacingChange(e, prop) {
@@ -1074,11 +1360,11 @@ function onBorderStyleChange(e) {
   emitContent();
 }
 
-function onBorderColorChange(e) {
+function onBorderColorChange(color) {
   const block = spacingPopover.el;
   if (!block) return;
   saveSnapshot();
-  const val = e.target.value;
+  const val = color;
   block.style.borderColor = val;
   spacingPopover.borderColor = val;
   // If setting color and style is none, default to solid with 1px
@@ -1097,6 +1383,20 @@ function onBorderColorChange(e) {
       block.style.borderStyle = "solid";
       spacingPopover.borderStyle = "solid";
     }
+  }
+  emitContent();
+}
+
+function onBlockBgColorFromPopover(color) {
+  const block = spacingPopover.el;
+  if (!block) return;
+  saveSnapshot();
+  if (color) {
+    block.style.backgroundColor = color;
+    spacingPopover.bgColor = color;
+  } else {
+    block.style.backgroundColor = "";
+    spacingPopover.bgColor = "";
   }
   emitContent();
 }
@@ -1807,7 +2107,7 @@ function convertDivToP() {
   }
 }
 
-function onKeyUp() {
+function onKeyUp(e) {
   updateActiveFormats();
   // Update or hide popover based on current selection
   const sel = window.getSelection();
@@ -1816,9 +2116,41 @@ function onKeyUp() {
   } else {
     selPopover.visible = false;
   }
+  // Update active block highlight when cursor moves via arrow keys
+  if (
+    sel &&
+    sel.rangeCount > 0 &&
+    ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)
+  ) {
+    const node = sel.anchorNode;
+    const block = findBlockFromNode(node);
+    if (block && block !== spacingPopover.el) {
+      selectBlock(block);
+    }
+  }
 }
 
 function onKeyDown(e) {
+  // Intercept Enter to insert <br> instead of creating a new block
+  if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    saveSnapshot();
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      const br = document.createElement("br");
+      range.insertNode(br);
+      // Move cursor after the <br>
+      range.setStartAfter(br);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    emitContent();
+    return;
+  }
+
   // Intercept Ctrl+Z / Ctrl+Y when custom undo/redo stack has entries
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === "z") {
     if (undoStack.value.length > 0) {
@@ -1899,6 +2231,20 @@ function emitContent() {
   clone
     .querySelectorAll(".ve-block-child")
     .forEach((el) => el.classList.remove("ve-block-child"));
+  // Inline margin:0 on block elements that don't have explicit margin (email-safe)
+  const blockSel =
+    "p,h1,h2,h3,h4,h5,h6,ul,ol,blockquote,pre,figure,figcaption,dl,dd";
+  clone.querySelectorAll(blockSel).forEach((el) => {
+    if (
+      !el.style.marginTop &&
+      !el.style.marginRight &&
+      !el.style.marginBottom &&
+      !el.style.marginLeft &&
+      !el.style.margin
+    ) {
+      el.style.margin = "0";
+    }
+  });
   emit("update:modelValue", clone.innerHTML);
   contentVersion.value++;
   nextTick(() => {
@@ -2167,7 +2513,33 @@ async function popoverInsertLink() {
   await insertLink();
 }
 
+function popoverTextColor(color) {
+  currentFgColor.value = color;
+  document.execCommand("foreColor", false, color);
+  editableRef.value?.focus();
+  emitContent();
+  nextTick(() => showSelectionPopover());
+}
+
 function popoverHighlight() {
+  // Check if current selection is already highlighted — toggle it off
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0) {
+    let node = sel.anchorNode;
+    if (node && node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+    while (node && node !== editableRef.value) {
+      const bg = node.style?.backgroundColor;
+      if (bg && bg !== "transparent" && bg !== "rgba(0, 0, 0, 0)") {
+        // Already highlighted — remove it
+        document.execCommand("hiliteColor", false, "transparent");
+        editableRef.value?.focus();
+        emitContent();
+        nextTick(() => showSelectionPopover());
+        return;
+      }
+      node = node.parentElement;
+    }
+  }
   document.execCommand("hiliteColor", false, "#ffe066");
   editableRef.value?.focus();
   emitContent();
@@ -2222,6 +2594,9 @@ function showLinkTooltip(anchor) {
   linkTooltip.anchor = anchor;
   linkTooltip.top = rect.bottom + 6;
   linkTooltip.left = rect.left;
+  const cs = window.getComputedStyle(anchor);
+  linkTooltip.underline =
+    cs.textDecorationLine !== "none" && cs.textDecoration !== "none";
   linkTooltip.visible = true;
 }
 
@@ -2246,6 +2621,21 @@ function removeLinkFromTooltip() {
     anchor.replaceWith(textNode);
     emitContent();
   }
+}
+
+function toggleLinkUnderline() {
+  const anchor = linkTooltip.anchor;
+  if (!anchor) return;
+  saveSnapshot();
+  const hasUnderline = linkTooltip.underline;
+  if (hasUnderline) {
+    anchor.style.textDecoration = "none";
+    linkTooltip.underline = false;
+  } else {
+    anchor.style.textDecoration = "underline";
+    linkTooltip.underline = true;
+  }
+  emitContent();
 }
 
 // Hide link tooltip and selection popover when clicking outside
@@ -2363,12 +2753,25 @@ function updateImgPopover() {
   imgPopover.width = Math.round(img.offsetWidth);
   imgPopover.height = Math.round(img.offsetHeight);
 
-  // Calculate width percentage relative to editor content
+  // Calculate content width for percentage calculations
   const contentWidth = editableRef.value?.clientWidth - 48; // subtract padding
-  if (contentWidth > 0) {
-    const pct = Math.round((img.offsetWidth / contentWidth) * 100);
+
+  // Detect current units from inline style
+  const styleW = img.style.width || "";
+  const styleH = img.style.height || "";
+  if (styleW.endsWith("%") || styleH.endsWith("%")) {
+    imgPopover.unit = "%";
     imgPopover.widthPct =
-      [25, 50, 75, 100].find((p) => Math.abs(p - pct) <= 3) || 0;
+      parseInt(styleW) ||
+      (contentWidth > 0
+        ? Math.round((img.offsetWidth / contentWidth) * 100)
+        : 0);
+    imgPopover.heightPct = parseInt(styleH) || 0;
+  } else {
+    imgPopover.unit = "px";
+    if (contentWidth > 0) {
+      imgPopover.widthPct = Math.round((img.offsetWidth / contentWidth) * 100);
+    }
   }
 
   // Detect alignment
@@ -2388,8 +2791,14 @@ function imgResize(delta) {
   const img = imgPopover.el;
   if (!img) return;
   saveSnapshot();
-  let newW = Math.max(30, img.offsetWidth + delta);
+  const oldW = img.offsetWidth;
+  const oldH = img.offsetHeight;
+  const newW = Math.max(30, oldW + delta);
   img.style.width = newW + "px";
+  if (imgPopover.lockRatio && oldW > 0) {
+    const newH = Math.max(30, Math.round(oldH * (newW / oldW)));
+    img.style.height = newH + "px";
+  }
   img.removeAttribute("width");
   img.removeAttribute("height");
   updateImgPopover();
@@ -2401,8 +2810,32 @@ function imgSetExactWidth(e) {
   const img = imgPopover.el;
   if (!img) return;
   saveSnapshot();
-  const newW = Math.max(10, parseInt(e.target.value) || 10);
-  img.style.width = newW + "px";
+  const val = parseInt(e.target.value) || 10;
+  if (imgPopover.unit === "%") {
+    const pct = Math.max(1, Math.min(100, val));
+    img.style.width = pct + "%";
+    if (imgPopover.lockRatio) {
+      // Maintain aspect ratio: scale height proportionally
+      const oldPctW = imgPopover.widthPct || pct;
+      const oldPctH = imgPopover.heightPct || pct;
+      if (oldPctW > 0) {
+        const newPctH = Math.max(
+          1,
+          Math.min(100, Math.round(oldPctH * (pct / oldPctW))),
+        );
+        img.style.height = newPctH + "%";
+      }
+    }
+  } else {
+    const oldW = img.offsetWidth;
+    const oldH = img.offsetHeight;
+    const newW = Math.max(10, val);
+    img.style.width = newW + "px";
+    if (imgPopover.lockRatio && oldW > 0) {
+      const newH = Math.max(10, Math.round(oldH * (newW / oldW)));
+      img.style.height = newH + "px";
+    }
+  }
   img.removeAttribute("width");
   img.removeAttribute("height");
   nextTick(() => {
@@ -2416,8 +2849,31 @@ function imgSetExactHeight(e) {
   const img = imgPopover.el;
   if (!img) return;
   saveSnapshot();
-  const newH = Math.max(10, parseInt(e.target.value) || 10);
-  img.style.height = newH + "px";
+  const val = parseInt(e.target.value) || 10;
+  if (imgPopover.unit === "%") {
+    const pct = Math.max(1, Math.min(100, val));
+    img.style.height = pct + "%";
+    if (imgPopover.lockRatio) {
+      const oldPctH = imgPopover.heightPct || pct;
+      const oldPctW = imgPopover.widthPct || pct;
+      if (oldPctH > 0) {
+        const newPctW = Math.max(
+          1,
+          Math.min(100, Math.round(oldPctW * (pct / oldPctH))),
+        );
+        img.style.width = newPctW + "%";
+      }
+    }
+  } else {
+    const oldW = img.offsetWidth;
+    const oldH = img.offsetHeight;
+    const newH = Math.max(10, val);
+    img.style.height = newH + "px";
+    if (imgPopover.lockRatio && oldH > 0) {
+      const newW = Math.max(10, Math.round(oldW * (newH / oldH)));
+      img.style.width = newW + "px";
+    }
+  }
   img.removeAttribute("width");
   img.removeAttribute("height");
   nextTick(() => {
@@ -2433,6 +2889,43 @@ function imgSetWidth(pct) {
   saveSnapshot();
   img.style.width = pct + "%";
   img.style.height = "auto";
+  img.removeAttribute("width");
+  img.removeAttribute("height");
+  nextTick(() => {
+    updateImgPopover();
+    refreshHandles(img);
+  });
+  emitContent();
+}
+
+function imgToggleUnit() {
+  const img = imgPopover.el;
+  if (!img) return;
+  saveSnapshot();
+  const contentWidth = editableRef.value?.clientWidth - 48;
+  if (imgPopover.unit === "px") {
+    // Switch to %
+    if (contentWidth > 0) {
+      const wPct = Math.max(
+        1,
+        Math.min(100, Math.round((img.offsetWidth / contentWidth) * 100)),
+      );
+      const hPct = Math.max(
+        1,
+        Math.min(100, Math.round((img.offsetHeight / contentWidth) * 100)),
+      );
+      img.style.width = wPct + "%";
+      img.style.height = hPct + "%";
+      imgPopover.unit = "%";
+    }
+  } else {
+    // Switch to px: use current rendered size
+    const w = img.offsetWidth;
+    const h = img.offsetHeight;
+    img.style.width = w + "px";
+    img.style.height = h + "px";
+    imgPopover.unit = "px";
+  }
   img.removeAttribute("width");
   img.removeAttribute("height");
   nextTick(() => {
@@ -2644,15 +3137,27 @@ function startImgResize(e, img, dir) {
       }
       img.style.clipPath = buildClipPath(c);
     } else if (resizeW) {
-      // Edge: width only
       const edx = dx * (flipX ? -1 : 1);
       const newW = Math.max(30, startW + edx);
       img.style.width = Math.round(newW) + "px";
+      if (imgPopover.lockRatio && startW > 0) {
+        const newH = Math.max(30, Math.round(startH * (newW / startW)));
+        img.style.height = newH + "px";
+      } else {
+        // Pin height so browser doesn't auto-scale
+        img.style.height = startH + "px";
+      }
     } else if (resizeH) {
-      // Edge: height only
       const edy = dy * (flipY ? -1 : 1);
       const newH = Math.max(30, startH + edy);
       img.style.height = Math.round(newH) + "px";
+      if (imgPopover.lockRatio && startH > 0) {
+        const newW = Math.max(30, Math.round(startW * (newH / startH)));
+        img.style.width = newW + "px";
+      } else {
+        // Pin width so browser doesn't auto-scale
+        img.style.width = startW + "px";
+      }
     }
     img.removeAttribute("width");
     img.removeAttribute("height");

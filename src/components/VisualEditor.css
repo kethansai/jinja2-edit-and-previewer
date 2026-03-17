@@ -33,6 +33,10 @@
   gap: 1px;
 }
 
+.ve-toolbar-group > .ve-color-picker {
+  margin: 0 2px;
+}
+
 .ve-toolbar-divider {
   width: 1px;
   height: 22px;
@@ -180,7 +184,14 @@
   color: #999;
 }
 
-.ve-block-tree-refresh {
+/* Header action buttons row */
+.ve-block-tree-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.ve-block-tree-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -191,19 +202,47 @@
   background: transparent;
   color: #666;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
+  padding: 0;
 }
-.ve-block-tree-refresh:hover {
+.ve-block-tree-btn:hover {
   background: #e3e6ec;
   color: #333;
 }
-.dark .ve-block-tree-refresh {
+.dark .ve-block-tree-btn {
   color: #999;
 }
-.dark .ve-block-tree-refresh:hover {
+.dark .ve-block-tree-btn:hover {
   background: #38384d;
   color: #ccc;
+}
+.ve-block-tree-btn-danger:hover {
+  background: #fde8e8;
+  color: #e03131;
+}
+.dark .ve-block-tree-btn-danger:hover {
+  background: #3d1f1f;
+  color: #ff6b6b;
+}
+
+/* Selection count badge */
+.ve-tree-selection-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #3b5bdb;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+.dark .ve-tree-selection-badge {
+  background: #5b7bff;
 }
 
 .ve-block-tree-body {
@@ -231,6 +270,7 @@
   margin: 0 4px;
   transition: background 0.1s;
   min-height: 26px;
+  position: relative;
 }
 .ve-tree-node-row:hover {
   background: #e3e6ec;
@@ -239,12 +279,131 @@
   background: #d0d8f0;
   color: #3b5bdb;
 }
+.ve-tree-node-row.multi-selected {
+  background: #dbe4f8;
+  outline: 1px dashed #7b9be0;
+  outline-offset: -1px;
+}
 .dark .ve-tree-node-row:hover {
   background: #38384d;
 }
 .dark .ve-tree-node-row.selected {
   background: #3b3b6c;
   color: #90b0ff;
+}
+.dark .ve-tree-node-row.multi-selected {
+  background: #32325a;
+  outline-color: #6080cc;
+}
+
+/* Drag indicators */
+.ve-tree-node-row.drag-over-before {
+  box-shadow: inset 0 2px 0 0 #3b5bdb;
+}
+.ve-tree-node-row.drag-over-after {
+  box-shadow: inset 0 -2px 0 0 #3b5bdb;
+}
+.ve-tree-node-row.drag-over-inside {
+  box-shadow: inset 0 0 0 2px #3b5bdb;
+  background: rgba(59, 91, 219, 0.08);
+}
+.dark .ve-tree-node-row.drag-over-before {
+  box-shadow: inset 0 2px 0 0 #7b9bff;
+}
+.dark .ve-tree-node-row.drag-over-after {
+  box-shadow: inset 0 -2px 0 0 #7b9bff;
+}
+.dark .ve-tree-node-row.drag-over-inside {
+  box-shadow: inset 0 0 0 2px #7b9bff;
+  background: rgba(123, 155, 255, 0.1);
+}
+
+/* Drag grip */
+.ve-tree-drag-grip {
+  flex-shrink: 0;
+  width: 12px;
+  font-size: 10px;
+  line-height: 1;
+  color: #bbb;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.15s;
+  text-align: center;
+  letter-spacing: -1px;
+}
+.ve-tree-node-row:hover .ve-tree-drag-grip {
+  opacity: 1;
+}
+.dark .ve-tree-drag-grip {
+  color: #666;
+}
+
+/* Add block button on each row */
+.ve-tree-add-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #bbb;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.ve-tree-node-row:hover .ve-tree-add-btn {
+  display: flex;
+}
+.ve-tree-add-btn:hover {
+  background: #e3f2e8;
+  color: #2b8a3e;
+}
+.dark .ve-tree-add-btn {
+  color: #666;
+}
+.dark .ve-tree-add-btn:hover {
+  background: #1f3d2a;
+  color: #69db7c;
+}
+
+/* Delete button on each row */
+.ve-tree-delete-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #bbb;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0;
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+.ve-tree-node-row:hover .ve-tree-delete-btn {
+  display: flex;
+}
+.ve-tree-delete-btn:hover {
+  background: #fde8e8;
+  color: #e03131;
+}
+.dark .ve-tree-delete-btn {
+  color: #666;
+}
+.dark .ve-tree-delete-btn:hover {
+  background: #3d1f1f;
+  color: #ff6b6b;
 }
 
 /* Toggle arrow */
@@ -340,8 +499,22 @@
   box-shadow: inset 0 0 0 2px rgba(91, 141, 239, 0.12);
 }
 
-/* Style content elements inside editor — kept minimal to match preview */
-.ve-content p {
+/* Style content elements inside editor — reset browser-default margins */
+.ve-content p,
+.ve-content h1,
+.ve-content h2,
+.ve-content h3,
+.ve-content h4,
+.ve-content h5,
+.ve-content h6,
+.ve-content ul,
+.ve-content ol,
+.ve-content blockquote,
+.ve-content pre,
+.ve-content figure,
+.ve-content figcaption,
+.ve-content dl,
+.ve-content dd {
   margin: 0;
 }
 .ve-content table {
@@ -611,6 +784,43 @@
   letter-spacing: -0.02em;
 }
 
+.ve-img-unit-btn {
+  font-size: 10px;
+  font-weight: 700;
+  width: auto;
+  padding: 0 5px;
+  min-width: 24px;
+  letter-spacing: -0.02em;
+  color: #666;
+  border: 1.5px solid #d8dce6;
+  border-radius: 5px;
+  background: #f0f1f5;
+}
+.ve-img-unit-btn:hover {
+  background: #e0e2ea;
+  color: #333;
+}
+.ve-img-popover.dark .ve-img-unit-btn {
+  background: #2a2a40;
+  border-color: #444460;
+  color: #999;
+}
+.ve-img-popover.dark .ve-img-unit-btn:hover {
+  background: #363650;
+  color: #ddd;
+}
+
+.ve-img-unit-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #999;
+  padding: 0 3px;
+  user-select: none;
+}
+.ve-img-popover.dark .ve-img-unit-label {
+  color: #666;
+}
+
 .ve-img-btn-danger:hover {
   background: #fde8e8;
   color: #e03131;
@@ -675,6 +885,22 @@
 .ve-img-popover.dark .ve-img-input:focus {
   border-color: #6b8def;
   background: #32324a;
+}
+
+.ve-img-lock-btn {
+  padding: 2px 3px;
+  color: #aaa;
+  opacity: 0.7;
+  transition:
+    opacity 0.15s,
+    color 0.15s;
+}
+.ve-img-lock-btn:hover {
+  opacity: 1;
+}
+.ve-img-lock-btn.active {
+  color: var(--el-color-primary, #0a8276);
+  opacity: 1;
 }
 
 .ve-img-lock-btn {
@@ -817,10 +1043,18 @@
   background: #eef0f5;
   color: #3b5bdb;
 }
+.ve-link-tooltip-btn.active {
+  background: #eef0f5;
+  color: #3b5bdb;
+}
 .ve-link-tooltip.dark .ve-link-tooltip-btn {
   color: #999;
 }
 .ve-link-tooltip.dark .ve-link-tooltip-btn:hover {
+  background: #38384d;
+  color: #7ba2ff;
+}
+.ve-link-tooltip.dark .ve-link-tooltip-btn.active {
   background: #38384d;
   color: #7ba2ff;
 }
@@ -926,6 +1160,23 @@
   color: #aaa;
 }
 
+/* Color picker inside selection popover */
+.ve-sp-color-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.ve-sp-color-input {
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 28px;
+  height: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
+}
+
 /* ---- Block Spacing Sidebar ---- */
 .ve-spacing-popover {
   width: 260px;
@@ -937,6 +1188,40 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.ve-spacing-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  text-align: center;
+  color: #999;
+  padding: 24px 12px;
+}
+
+.ve-spacing-empty p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #888;
+}
+
+.ve-spacing-empty .ve-spacing-empty-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #aaa;
+  line-height: 1.5;
+}
+
+.ve-spacing-popover.dark .ve-spacing-empty p {
+  color: #888;
+}
+
+.ve-spacing-popover.dark .ve-spacing-empty .ve-spacing-empty-hint {
+  color: #666;
 }
 .ve-spacing-popover.dark {
   background: #262638;

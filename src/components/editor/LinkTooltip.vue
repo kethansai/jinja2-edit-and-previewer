@@ -16,6 +16,14 @@
     >
     <button
       class="ve-link-tooltip-btn"
+      :class="{ active: !tooltip.underline }"
+      :title="tooltip.underline ? 'Remove underline' : 'Add underline'"
+      @click="$emit('toggle-underline')"
+    >
+      <IconUnderline :size="14" />
+    </button>
+    <button
+      class="ve-link-tooltip-btn"
       title="Edit link"
       @click="$emit('edit')"
     >
@@ -32,12 +40,12 @@
 </template>
 
 <script setup>
-import { IconPencil, IconUnlink } from "../../assets/icons";
+import { IconPencil, IconUnlink, IconUnderline } from "../../assets/icons";
 
 defineProps({
   tooltip: { type: Object, required: true },
   dark: { type: Boolean, default: false },
 });
 
-defineEmits(["edit", "remove"]);
+defineEmits(["edit", "remove", "toggle-underline"]);
 </script>

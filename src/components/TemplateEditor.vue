@@ -3,9 +3,24 @@
     <div class="editor-header">
       <span class="editor-title">
         <el-icon><EditPen /></el-icon>
-        Template
+        {{ activeTemplateName || "Template" }}
       </span>
-      <div class="editor-mode-toggle">
+      <div class="editor-header-actions">
+        <el-tooltip
+          v-if="editMode === 'visual'"
+          content="Toggle layers panel"
+          placement="bottom"
+        >
+          <el-button
+            :type="showLayers ? 'primary' : 'default'"
+            size="small"
+            text
+            @click="showLayers = !showLayers"
+          >
+            <span style="font-size: 13px; margin-right: 4px">☰</span>
+            Layers
+          </el-button>
+        </el-tooltip>
         <el-segmented v-model="editMode" :options="modeOptions" size="small" />
       </div>
     </div>
@@ -24,6 +39,7 @@
       <VisualEditor
         v-model="code"
         :dark="dark"
+        :show-layers="showLayers"
         @update:modelValue="onVisualUpdate"
       />
     </div>
@@ -43,17 +59,19 @@ import { formatHTML } from "../utils/htmlFormatter.js";
 const props = defineProps({
   modelValue: { type: String, default: "" },
   dark: { type: Boolean, default: false },
+  activeTemplateName: { type: String, default: "" },
 });
 
 const emit = defineEmits(["update:modelValue"]);
 
 const code = ref(props.modelValue);
-const editMode = ref("code");
-let lastMode = "code";
+const editMode = ref("visual");
+const showLayers = ref(true);
+let lastMode = "visual";
 
 const modeOptions = [
-  { label: "< > Code", value: "code" },
   { label: "🖊 Visual", value: "visual" },
+  { label: "< > Code", value: "code" },
 ];
 
 // Format code when switching from visual to code mode
@@ -122,8 +140,11 @@ function onVisualUpdate(val) {
   color: var(--el-text-color-primary);
 }
 
-.editor-mode-toggle {
+.editor-header-actions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .editor-body {

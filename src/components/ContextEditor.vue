@@ -1,14 +1,26 @@
 <template>
   <div class="editor-container">
-    <div class="editor-header">
+    <div v-if="!hideHeader" class="editor-header">
       <span class="editor-title">
         <el-icon><Document /></el-icon>
         Variables (JSON)
       </span>
-      <el-tag v-if="error" type="danger" size="small" effect="dark" style="margin-left: auto;">
+      <el-tag
+        v-if="error"
+        type="danger"
+        size="small"
+        effect="dark"
+        style="margin-left: auto"
+      >
         Invalid JSON
       </el-tag>
-      <el-tag v-else type="success" size="small" effect="plain" style="margin-left: auto;">
+      <el-tag
+        v-else
+        type="success"
+        size="small"
+        effect="plain"
+        style="margin-left: auto"
+      >
         Valid
       </el-tag>
     </div>
@@ -24,49 +36,50 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { Codemirror } from 'vue-codemirror'
-import { json } from '@codemirror/lang-json'
-import { oneDark } from '@codemirror/theme-one-dark'
-import { EditorView } from 'codemirror'
-import { Document } from '@element-plus/icons-vue'
+import { ref, computed, watch } from "vue";
+import { Codemirror } from "vue-codemirror";
+import { json } from "@codemirror/lang-json";
+import { oneDark } from "@codemirror/theme-one-dark";
+import { EditorView } from "codemirror";
+import { Document } from "@element-plus/icons-vue";
 
 const props = defineProps({
-  modelValue: { type: String, default: '{}' },
+  modelValue: { type: String, default: "{}" },
   dark: { type: Boolean, default: false },
-})
+  hideHeader: { type: Boolean, default: false },
+});
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(["update:modelValue"]);
 
-const code = ref(props.modelValue)
-const error = ref(null)
+const code = ref(props.modelValue);
+const error = ref(null);
 
-watch(() => props.modelValue, (val) => {
-  if (val !== code.value) {
-    code.value = val
-  }
-})
+watch(
+  () => props.modelValue,
+  (val) => {
+    if (val !== code.value) {
+      code.value = val;
+    }
+  },
+);
 
 const extensions = computed(() => {
-  const exts = [
-    json(),
-    EditorView.lineWrapping,
-  ]
+  const exts = [json(), EditorView.lineWrapping];
   if (props.dark) {
-    exts.push(oneDark)
+    exts.push(oneDark);
   }
-  return exts
-})
+  return exts;
+});
 
 function onUpdate(val) {
   // Validate JSON
   try {
-    JSON.parse(val)
-    error.value = null
+    JSON.parse(val);
+    error.value = null;
   } catch (e) {
-    error.value = e.message
+    error.value = e.message;
   }
-  emit('update:modelValue', val)
+  emit("update:modelValue", val);
 }
 </script>
 

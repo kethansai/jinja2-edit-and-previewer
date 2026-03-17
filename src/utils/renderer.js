@@ -1,4 +1,4 @@
-import nunjucks from 'nunjucks'
+import nunjucks from "nunjucks";
 
 /**
  * Create a Nunjucks environment configured to behave like Jinja2.
@@ -10,173 +10,230 @@ function createEnvironment(customFilters = {}) {
     throwOnUndefined: false,
     trimBlocks: true,
     lstripBlocks: true,
-  })
+  });
 
   // --- Built-in Jinja2-compatible filters ---
 
-  env.addFilter('tojson', (val, indent) => {
-    return JSON.stringify(val, null, indent || 0)
-  })
+  env.addFilter("tojson", (val, indent) => {
+    return JSON.stringify(val, null, indent || 0);
+  });
 
-  env.addFilter('pprint', (val) => {
-    return JSON.stringify(val, null, 2)
-  })
+  env.addFilter("pprint", (val) => {
+    return JSON.stringify(val, null, 2);
+  });
 
-  env.addFilter('default', (val, defaultVal, boolean) => {
+  env.addFilter("default", (val, defaultVal, boolean) => {
     if (boolean) {
-      return val ? val : defaultVal
+      return val ? val : defaultVal;
     }
-    return val !== undefined && val !== null ? val : (defaultVal !== undefined ? defaultVal : '')
-  })
+    return val !== undefined && val !== null
+      ? val
+      : defaultVal !== undefined
+        ? defaultVal
+        : "";
+  });
 
   // Override lower/upper to handle non-string values (booleans, numbers, etc.)
-  env.addFilter('lower', (val) => String(val).toLowerCase())
-  env.addFilter('upper', (val) => String(val).toUpperCase())
+  env.addFilter("lower", (val) => String(val).toLowerCase());
+  env.addFilter("upper", (val) => String(val).toUpperCase());
 
   // Jinja2's format filter: "%.2f" | format(val)
-  env.addFilter('format', function (formatStr, ...args) {
-    let result = formatStr
+  env.addFilter("format", function (formatStr, ...args) {
+    let result = formatStr;
     // Handle printf-style %s, %d, %f, %.Nf
-    let argIndex = 0
-    result = result.replace(/%(?:(\d+)\$)?([+-]?)(\d*)?(?:\.(\d+))?([sdfeEgGoxXbcr%])/g,
+    let argIndex = 0;
+    result = result.replace(
+      /%(?:(\d+)\$)?([+-]?)(\d*)?(?:\.(\d+))?([sdfeEgGoxXbcr%])/g,
       (match, pos, sign, width, precision, type) => {
-        if (type === '%') return '%'
-        const val = pos ? args[parseInt(pos) - 1] : args[argIndex++]
-        if (val === undefined) return match
+        if (type === "%") return "%";
+        const val = pos ? args[parseInt(pos) - 1] : args[argIndex++];
+        if (val === undefined) return match;
         switch (type) {
-          case 's': return String(val)
-          case 'd':
-          case 'i': return Math.floor(Number(val)).toString()
-          case 'f':
-          case 'F': {
-            const p = precision !== undefined ? parseInt(precision) : 6
-            return Number(val).toFixed(p)
+          case "s":
+            return String(val);
+          case "d":
+          case "i":
+            return Math.floor(Number(val)).toString();
+          case "f":
+          case "F": {
+            const p = precision !== undefined ? parseInt(precision) : 6;
+            return Number(val).toFixed(p);
           }
-          case 'e': return Number(val).toExponential(precision ? parseInt(precision) : undefined)
-          case 'E': return Number(val).toExponential(precision ? parseInt(precision) : undefined).toUpperCase()
-          case 'g':
-          case 'G': return Number(val).toPrecision(precision ? parseInt(precision) : undefined)
-          case 'o': return Math.floor(Number(val)).toString(8)
-          case 'x': return Math.floor(Number(val)).toString(16)
-          case 'X': return Math.floor(Number(val)).toString(16).toUpperCase()
-          default: return String(val)
+          case "e":
+            return Number(val).toExponential(
+              precision ? parseInt(precision) : undefined,
+            );
+          case "E":
+            return Number(val)
+              .toExponential(precision ? parseInt(precision) : undefined)
+              .toUpperCase();
+          case "g":
+          case "G":
+            return Number(val).toPrecision(
+              precision ? parseInt(precision) : undefined,
+            );
+          case "o":
+            return Math.floor(Number(val)).toString(8);
+          case "x":
+            return Math.floor(Number(val)).toString(16);
+          case "X":
+            return Math.floor(Number(val)).toString(16).toUpperCase();
+          default:
+            return String(val);
         }
-      })
-    return result
-  })
+      },
+    );
+    return result;
+  });
 
-  env.addFilter('int', (val) => parseInt(val, 10) || 0)
-  env.addFilter('float', (val) => parseFloat(val) || 0.0)
-  env.addFilter('string', (val) => String(val))
+  env.addFilter("int", (val) => parseInt(val, 10) || 0);
+  env.addFilter("float", (val) => parseFloat(val) || 0.0);
+  env.addFilter("string", (val) => String(val));
 
-  env.addFilter('truncate', (str, length, end) => {
-    length = length || 255
-    end = end || '...'
-    if (typeof str !== 'string') return str
-    if (str.length <= length) return str
-    return str.substring(0, length - end.length) + end
-  })
+  env.addFilter("truncate", (str, length, end) => {
+    length = length || 255;
+    end = end || "...";
+    if (typeof str !== "string") return str;
+    if (str.length <= length) return str;
+    return str.substring(0, length - end.length) + end;
+  });
 
-  env.addFilter('wordcount', (str) => {
-    if (typeof str !== 'string') return 0
-    return str.trim().split(/\s+/).filter(Boolean).length
-  })
+  env.addFilter("wordcount", (str) => {
+    if (typeof str !== "string") return 0;
+    return str.trim().split(/\s+/).filter(Boolean).length;
+  });
 
-  env.addFilter('center', (str, width) => {
-    str = String(str)
-    width = width || 80
-    if (str.length >= width) return str
-    const pad = width - str.length
-    const left = Math.floor(pad / 2)
-    const right = pad - left
-    return ' '.repeat(left) + str + ' '.repeat(right)
-  })
+  env.addFilter("center", (str, width) => {
+    str = String(str);
+    width = width || 80;
+    if (str.length >= width) return str;
+    const pad = width - str.length;
+    const left = Math.floor(pad / 2);
+    const right = pad - left;
+    return " ".repeat(left) + str + " ".repeat(right);
+  });
 
-  env.addFilter('filesizeformat', (bytes) => {
-    bytes = Number(bytes)
-    if (isNaN(bytes)) return '0 Bytes'
-    const units = ['Bytes', 'kB', 'MB', 'GB', 'TB']
-    let i = 0
+  env.addFilter("filesizeformat", (bytes) => {
+    bytes = Number(bytes);
+    if (isNaN(bytes)) return "0 Bytes";
+    const units = ["Bytes", "kB", "MB", "GB", "TB"];
+    let i = 0;
     while (bytes >= 1000 && i < units.length - 1) {
-      bytes /= 1000
-      i++
+      bytes /= 1000;
+      i++;
     }
-    return (i === 0 ? bytes : bytes.toFixed(1)) + ' ' + units[i]
-  })
+    return (i === 0 ? bytes : bytes.toFixed(1)) + " " + units[i];
+  });
 
-  env.addFilter('map', (arr, attr) => {
-    if (!Array.isArray(arr)) return arr
-    return arr.map((item) => item[attr])
-  })
+  env.addFilter("map", (arr, attr) => {
+    if (!Array.isArray(arr)) return arr;
+    return arr.map((item) => item[attr]);
+  });
 
-  env.addFilter('selectattr', (arr, attr, testVal) => {
-    if (!Array.isArray(arr)) return arr
+  env.addFilter("selectattr", (arr, attr, testVal) => {
+    if (!Array.isArray(arr)) return arr;
     if (testVal !== undefined) {
-      return arr.filter((item) => item[attr] === testVal)
+      return arr.filter((item) => item[attr] === testVal);
     }
-    return arr.filter((item) => !!item[attr])
-  })
+    return arr.filter((item) => !!item[attr]);
+  });
 
-  env.addFilter('rejectattr', (arr, attr, testVal) => {
-    if (!Array.isArray(arr)) return arr
+  env.addFilter("rejectattr", (arr, attr, testVal) => {
+    if (!Array.isArray(arr)) return arr;
     if (testVal !== undefined) {
-      return arr.filter((item) => item[attr] !== testVal)
+      return arr.filter((item) => item[attr] !== testVal);
     }
-    return arr.filter((item) => !item[attr])
-  })
+    return arr.filter((item) => !item[attr]);
+  });
 
-  env.addFilter('groupby', (arr, attr) => {
-    if (!Array.isArray(arr)) return arr
-    const groups = {}
+  env.addFilter("groupby", (arr, attr) => {
+    if (!Array.isArray(arr)) return arr;
+    const groups = {};
     arr.forEach((item) => {
-      const key = item[attr]
-      if (!groups[key]) groups[key] = { grouper: key, list: [] }
-      groups[key].list.push(item)
-    })
-    return Object.values(groups)
-  })
+      const key = item[attr];
+      if (!groups[key]) groups[key] = { grouper: key, list: [] };
+      groups[key].list.push(item);
+    });
+    return Object.values(groups);
+  });
 
-  env.addFilter('unique', (arr) => {
-    if (!Array.isArray(arr)) return arr
-    return [...new Set(arr)]
-  })
+  env.addFilter("unique", (arr) => {
+    if (!Array.isArray(arr)) return arr;
+    return [...new Set(arr)];
+  });
 
-  env.addFilter('min', (arr) => {
-    if (!Array.isArray(arr)) return arr
-    return Math.min(...arr)
-  })
+  env.addFilter("min", (arr) => {
+    if (!Array.isArray(arr)) return arr;
+    return Math.min(...arr);
+  });
 
-  env.addFilter('max', (arr) => {
-    if (!Array.isArray(arr)) return arr
-    return Math.max(...arr)
-  })
+  env.addFilter("max", (arr) => {
+    if (!Array.isArray(arr)) return arr;
+    return Math.max(...arr);
+  });
 
-  env.addFilter('sum', (arr, attr) => {
-    if (!Array.isArray(arr)) return 0
-    if (attr) return arr.reduce((sum, item) => sum + (Number(item[attr]) || 0), 0)
-    return arr.reduce((sum, val) => sum + (Number(val) || 0), 0)
-  })
+  env.addFilter("sum", (arr, attr) => {
+    if (!Array.isArray(arr)) return 0;
+    if (attr)
+      return arr.reduce((sum, item) => sum + (Number(item[attr]) || 0), 0);
+    return arr.reduce((sum, val) => sum + (Number(val) || 0), 0);
+  });
 
-  env.addFilter('items', (obj) => {
-    if (typeof obj !== 'object' || obj === null) return []
-    return Object.entries(obj)
-  })
+  env.addFilter("items", (obj) => {
+    if (typeof obj !== "object" || obj === null) return [];
+    return Object.entries(obj);
+  });
 
-  env.addFilter('dictsort', (obj) => {
-    if (typeof obj !== 'object' || obj === null) return []
-    return Object.entries(obj).sort((a, b) => a[0].localeCompare(b[0]))
-  })
+  env.addFilter("dictsort", (obj) => {
+    if (typeof obj !== "object" || obj === null) return [];
+    return Object.entries(obj).sort((a, b) => a[0].localeCompare(b[0]));
+  });
 
   // --- Register user-defined custom filters ---
-  if (customFilters && typeof customFilters === 'object') {
+  if (customFilters && typeof customFilters === "object") {
     Object.entries(customFilters).forEach(([name, fn]) => {
-      if (typeof fn === 'function') {
-        env.addFilter(name, fn)
+      if (typeof fn === "function") {
+        // Register as async filter so Promises are resolved before rendering
+        env.addFilter(
+          name,
+          function (...args) {
+            const callback = args.pop();
+            try {
+              const result = fn.apply(this, args);
+              if (
+                result &&
+                typeof result === "object" &&
+                typeof result.then === "function"
+              ) {
+                result.then(
+                  (val) => callback(null, val),
+                  (err) => callback(err),
+                );
+              } else {
+                callback(null, result);
+              }
+            } catch (err) {
+              callback(err);
+            }
+          },
+          true,
+        );
       }
-    })
+    });
   }
 
-  return env
+  // --- Gracefully handle unknown filters (pass value through) ---
+  const origGetFilter = env.getFilter.bind(env);
+  env.getFilter = function (name) {
+    try {
+      return origGetFilter(name);
+    } catch {
+      // Return a passthrough so unknown filters don't break rendering
+      return (val) => val;
+    }
+  };
+
+  return env;
 }
 
 /**
@@ -186,25 +243,28 @@ function createEnvironment(customFilters = {}) {
  */
 export function parseCustomFilters(code) {
   if (!code || !code.trim()) {
-    return { filters: {}, error: null }
+    return { filters: {}, error: null };
   }
 
   try {
     // Wrap in parens to make it an expression, then evaluate
-    const fn = new Function(`"use strict"; return (${code.trim()});`)
-    const filters = fn()
-    if (typeof filters !== 'object' || filters === null) {
-      return { filters: null, error: 'Custom filters must be an object: { filterName: (val) => ... }' }
+    const fn = new Function(`"use strict"; return (${code.trim()});`);
+    const filters = fn();
+    if (typeof filters !== "object" || filters === null) {
+      return {
+        filters: null,
+        error: "Custom filters must be an object: { filterName: (val) => ... }",
+      };
     }
     // Validate all values are functions
     for (const [key, val] of Object.entries(filters)) {
-      if (typeof val !== 'function') {
-        return { filters: null, error: `Filter "${key}" must be a function` }
+      if (typeof val !== "function") {
+        return { filters: null, error: `Filter "${key}" must be a function` };
       }
     }
-    return { filters, error: null }
+    return { filters, error: null };
   } catch (e) {
-    return { filters: null, error: `Filter parse error: ${e.message}` }
+    return { filters: null, error: `Filter parse error: ${e.message}` };
   }
 }
 
@@ -217,10 +277,29 @@ export function parseCustomFilters(code) {
  */
 export function renderTemplate(templateStr, context = {}, customFilters = {}) {
   try {
-    const env = createEnvironment(customFilters)
-    const output = env.renderString(templateStr, context)
-    return { output, error: null }
+    const env = createEnvironment(customFilters);
+    const hasCustomFilters =
+      customFilters &&
+      typeof customFilters === "object" &&
+      Object.keys(customFilters).length > 0;
+
+    if (hasCustomFilters) {
+      // Use async rendering to support filters that return Promises
+      return new Promise((resolve) => {
+        env.renderString(templateStr, context, (err, output) => {
+          if (err) {
+            resolve({ output: null, error: err.message });
+          } else {
+            resolve({ output, error: null });
+          }
+        });
+      });
+    }
+
+    // Synchronous rendering when no custom filters
+    const output = env.renderString(templateStr, context);
+    return { output, error: null };
   } catch (e) {
-    return { output: null, error: e.message }
+    return { output: null, error: e.message };
   }
 }

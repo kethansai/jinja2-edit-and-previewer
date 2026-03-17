@@ -4,61 +4,55 @@
     class="ve-img-popover"
     :class="{ dark }"
     :style="{ top: popover.top + 'px', left: popover.left + 'px' }"
-    @mousedown.prevent
+    @mousedown.stop
   >
     <!-- Size controls -->
     <div class="ve-img-size-group">
-      <button
-        class="ve-img-btn"
-        title="Decrease size"
-        @click="$emit('resize', -10)"
-      >
-        <IconMinusCircle :size="14" />
-      </button>
       <div class="ve-img-inputs">
         <label class="ve-img-input-label">W</label>
         <input
           class="ve-img-input"
           type="number"
-          :value="popover.width"
-          min="10"
+          :value="popover.unit === '%' ? popover.widthPct : popover.width"
+          min="1"
+          :max="popover.unit === '%' ? 100 : undefined"
           @change="$emit('set-width', $event)"
           @keydown.enter.prevent="$emit('set-width', $event)"
-          title="Width in pixels"
+          :title="'Width in ' + (popover.unit === '%' ? 'percent' : 'pixels')"
         />
+        <button
+          class="ve-img-btn ve-img-lock-btn"
+          :class="{ active: popover.lockRatio }"
+          :title="
+            popover.lockRatio ? 'Unlock aspect ratio' : 'Lock aspect ratio'
+          "
+          @mousedown.prevent
+          @click="$emit('toggle-lock')"
+        >
+          <IconLockClosed v-if="popover.lockRatio" :size="13" />
+          <IconLockOpen v-else :size="13" />
+        </button>
         <label class="ve-img-input-label">H</label>
         <input
           class="ve-img-input"
           type="number"
-          :value="popover.height"
-          min="10"
+          :value="popover.unit === '%' ? popover.heightPct : popover.height"
+          min="1"
+          :max="popover.unit === '%' ? 100 : undefined"
           @change="$emit('set-height', $event)"
           @keydown.enter.prevent="$emit('set-height', $event)"
-          title="Height in pixels"
+          :title="'Height in ' + (popover.unit === '%' ? 'percent' : 'pixels')"
         />
+        <button
+          class="ve-img-btn ve-img-unit-btn"
+          title="Toggle unit (px / %)"
+          @mousedown.prevent
+          @click="$emit('toggle-unit')"
+        >
+          {{ popover.unit || "px" }}
+        </button>
       </div>
-      <button
-        class="ve-img-btn"
-        title="Increase size"
-        @click="$emit('resize', 10)"
-      >
-        <IconPlusCircle :size="14" />
-      </button>
     </div>
-
-    <span class="ve-img-divider"></span>
-
-    <!-- Preset sizes -->
-    <button
-      v-for="pct in [25, 50, 75, 100]"
-      :key="pct"
-      class="ve-img-btn ve-img-btn-text"
-      :class="{ active: popover.widthPct === pct }"
-      :title="pct + '% width'"
-      @click="$emit('set-width-pct', pct)"
-    >
-      {{ pct }}%
-    </button>
 
     <span class="ve-img-divider"></span>
 
@@ -69,6 +63,7 @@
       class="ve-img-btn"
       :class="{ active: popover.align === a.value }"
       :title="a.title"
+      @mousedown.prevent
       @click="$emit('set-align', a.value)"
     >
       <component :is="a.icon" :size="14" />
@@ -77,12 +72,18 @@
     <span class="ve-img-divider"></span>
 
     <!-- Replace & Delete -->
-    <button class="ve-img-btn" title="Replace image" @click="$emit('replace')">
+    <button
+      class="ve-img-btn"
+      title="Replace image"
+      @mousedown.prevent
+      @click="$emit('replace')"
+    >
       <IconImage :size="14" />
     </button>
     <button
       class="ve-img-btn ve-img-btn-danger"
       title="Delete image"
+      @mousedown.prevent
       @click="$emit('delete')"
     >
       <IconTrashAlt :size="14" />
@@ -93,13 +94,13 @@
 <script setup>
 import { markRaw } from "vue";
 import {
-  IconMinusCircle,
-  IconPlusCircle,
   IconFloatLeft,
   IconFloatCenter,
   IconFloatRight,
   IconImage,
   IconTrashAlt,
+  IconLockClosed,
+  IconLockOpen,
 } from "../../assets/icons";
 
 defineProps({
@@ -108,13 +109,13 @@ defineProps({
 });
 
 defineEmits([
-  "resize",
   "set-width",
   "set-height",
-  "set-width-pct",
   "set-align",
   "replace",
   "delete",
+  "toggle-lock",
+  "toggle-unit",
 ]);
 
 const alignOptions = [

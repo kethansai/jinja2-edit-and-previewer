@@ -15,14 +15,14 @@
             >v2</el-tag
           >
         </span>
+      </div>
 
-        <el-divider direction="vertical" />
-
+      <div class="toolbar-right">
         <el-select
           v-model="selectedTemplate"
           placeholder="Load Template..."
           size="small"
-          style="width: 220px"
+          class="template-dropdown"
           @change="onTemplateSelect"
         >
           <el-option label="+ New Template" value="__new__" />
@@ -57,30 +57,16 @@
             />
           </el-option-group>
         </el-select>
-      </div>
 
-      <div class="toolbar-right">
-        <el-tooltip content="Toggle variables panel" placement="bottom">
+        <el-tooltip content="Toggle preview panel" placement="bottom">
           <el-button
-            :type="showVariables ? 'primary' : 'default'"
+            :type="showPreview ? 'primary' : 'default'"
             size="small"
-            @click="toggleVariables"
-            :icon="DocumentIcon"
+            :icon="ViewIcon"
+            @click="showPreview = !showPreview"
             plain
           >
-            Variables
-          </el-button>
-        </el-tooltip>
-
-        <el-tooltip content="Toggle custom filters panel" placement="bottom">
-          <el-button
-            :type="showFilters ? 'primary' : 'default'"
-            size="small"
-            @click="showFilters = !showFilters"
-            :icon="FilterIcon"
-            plain
-          >
-            Filters
+            Preview
           </el-button>
         </el-tooltip>
 
@@ -121,46 +107,79 @@
             inline-prompt
           />
         </el-tooltip>
+
+        <el-divider direction="vertical" />
+
+        <el-tooltip content="User guide & documentation" placement="bottom">
+          <el-button
+            size="small"
+            :icon="QuestionFilled"
+            @click="showDocs = true"
+            circle
+          />
+        </el-tooltip>
       </div>
     </el-header>
 
     <!-- Main Content -->
     <el-main class="app-main">
       <Splitpanes class="default-theme" @resize="onResize">
-        <!-- Left: Template Editor + optional Filters -->
-        <Pane :size="leftPaneSize" :min-size="15">
-          <Splitpanes horizontal v-if="showFilters">
-            <Pane :size="65" :min-size="30">
-              <TemplateEditor v-model="template" :dark="isDark" />
-            </Pane>
-            <Pane :size="35" :min-size="15">
-              <FiltersEditor
-                v-model="customFiltersCode"
-                :dark="isDark"
-                @filtersChange="onFiltersChange"
-              />
-            </Pane>
-          </Splitpanes>
-          <TemplateEditor v-else v-model="template" :dark="isDark" />
+        <!-- Left: Template Editor (full height) -->
+        <Pane :size="showPreview ? leftPaneSize : 100" :min-size="15">
+          <TemplateEditor
+            v-model="template"
+            :dark="isDark"
+            :active-template-name="activeTemplateName"
+          />
         </Pane>
 
-        <!-- Right: Preview + Variables -->
-        <Pane :size="rightPaneSize" :min-size="20">
-          <div class="right-pane-wrapper">
-            <div
-              class="right-pane-preview"
-              :class="{ 'has-variables': showVariables }"
-            >
-              <PreviewPanel
-                :output="renderedOutput"
-                :error="renderError"
-                :dark="isDark"
-              />
-            </div>
-            <div v-if="showVariables" class="right-pane-variables">
-              <ContextEditor v-model="context" :dark="isDark" />
-            </div>
-          </div>
+        <!-- Right: Preview + Variables / Filters (toggled) -->
+        <Pane v-if="showPreview" :size="rightPaneSize" :min-size="20">
+          <Splitpanes
+            class="default-theme"
+            horizontal
+            @resize="onVerticalResize"
+          >
+            <!-- Preview section -->
+            <Pane :size="showDataPanel ? previewPaneSize : 100" :min-size="20">
+              <div class="right-pane-preview">
+                <PreviewPanel
+                  :output="renderedOutput"
+                  :error="renderError"
+                  :dark="isDark"
+                  :show-configure="showDataPanel"
+                  @toggle-configure="showDataPanel = !showDataPanel"
+                />
+              </div>
+            </Pane>
+
+            <!-- Data panel: Variables & Custom Filters tabs -->
+            <Pane v-if="showDataPanel" :size="dataPaneSize" :min-size="10">
+              <div class="right-pane-data">
+                <div class="data-panel-header">
+                  <el-tabs v-model="activeDataTab" class="data-tabs">
+                    <el-tab-pane label="Variables" name="variables" />
+                    <el-tab-pane label="Custom Filters" name="filters" />
+                  </el-tabs>
+                </div>
+                <div class="data-panel-body">
+                  <ContextEditor
+                    v-show="activeDataTab === 'variables'"
+                    v-model="context"
+                    :dark="isDark"
+                    hide-header
+                  />
+                  <FiltersEditor
+                    v-show="activeDataTab === 'filters'"
+                    v-model="customFiltersCode"
+                    :dark="isDark"
+                    hide-header
+                    @filtersChange="onFiltersChange"
+                  />
+                </div>
+              </div>
+            </Pane>
+          </Splitpanes>
         </Pane>
       </Splitpanes>
     </el-main>
@@ -188,6 +207,9 @@
 
     <!-- Global custom modal -->
     <CustomModal :dark="isDark" />
+
+    <!-- Documentation drawer -->
+    <DocsDrawer v-model="showDocs" :dark="isDark" />
   </el-container>
 </template>
 
@@ -201,8 +223,8 @@ import {
   Sunny,
   SuccessFilled,
   CircleCloseFilled,
-  Filter as FilterIcon,
-  Document as DocumentIcon,
+  View as ViewIcon,
+  QuestionFilled,
 } from "@element-plus/icons-vue";
 import { Splitpanes, Pane } from "splitpanes";
 import "splitpanes/dist/splitpanes.css";
@@ -212,6 +234,7 @@ import ContextEditor from "./components/ContextEditor.vue";
 import FiltersEditor from "./components/FiltersEditor.vue";
 import PreviewPanel from "./components/PreviewPanel.vue";
 import CustomModal from "./components/CustomModal.vue";
+import DocsDrawer from "./components/DocsDrawer.vue";
 
 import { renderTemplate } from "./utils/renderer.js";
 import { copyToClipboard, downloadFile } from "./utils/export.js";
@@ -320,6 +343,7 @@ function onTemplateSelect(val) {
     if (ex) {
       template.value = ex.template;
       context.value = ex.context;
+      customFiltersCode.value = ex.filters || "";
       activeTemplateId.value = null;
       ElMessage.success(`Loaded "${ex.name}" template`);
     }
@@ -362,15 +386,29 @@ function deleteTemplate(id) {
     .catch(() => {});
 }
 
-// --- Variables panel toggle ---
-const showVariables = ref(false);
+// --- Active template name ---
+const activeTemplateName = computed(() => {
+  if (activeTemplateId.value) {
+    const ct = customTemplates.value.find(
+      (t) => t.id === activeTemplateId.value,
+    );
+    if (ct) return ct.name;
+  }
+  const sel = selectedTemplate.value;
+  if (sel && sel.startsWith("example-")) {
+    const idx = parseInt(sel.replace("example-", ""), 10);
+    if (examples[idx]) return examples[idx].name;
+  }
+  return "Untitled";
+});
 
-function toggleVariables() {
-  showVariables.value = !showVariables.value;
-}
+// --- Preview & data panel ---
+const showPreview = ref(false);
+const showDataPanel = ref(true);
+const activeDataTab = ref("variables");
 
-// --- Custom filters ---
-const showFilters = ref(false);
+// --- Documentation ---
+const showDocs = ref(false);
 const customFilters = shallowRef({});
 
 function onFiltersChange(filters) {
@@ -385,7 +423,7 @@ const autoSaveStatus = ref("enabled");
 
 let renderTimer = null;
 
-function doRender() {
+async function doRender() {
   let parsedContext = {};
   try {
     parsedContext = JSON.parse(context.value || "{}");
@@ -395,10 +433,8 @@ function doRender() {
     return;
   }
 
-  const result = renderTemplate(
-    template.value,
-    parsedContext,
-    customFilters.value,
+  const result = await Promise.resolve(
+    renderTemplate(template.value, parsedContext, customFilters.value),
   );
   if (result.error) {
     renderError.value = result.error;
@@ -419,11 +455,20 @@ watch([template, context, customFilters], debouncedRender, { immediate: true });
 // --- Pane sizes ---
 const leftPaneSize = ref(50);
 const rightPaneSize = ref(50);
+const previewPaneSize = ref(60);
+const dataPaneSize = ref(40);
 
 function onResize(panes) {
   if (panes.length >= 2) {
     leftPaneSize.value = panes[0].size;
     rightPaneSize.value = panes[1].size;
+  }
+}
+
+function onVerticalResize(panes) {
+  if (panes.length >= 2) {
+    previewPaneSize.value = panes[0].size;
+    dataPaneSize.value = panes[1].size;
   }
 }
 
@@ -566,29 +611,44 @@ onMounted(() => {
 }
 
 /* Right pane: Preview on top, Variables on bottom */
-.right-pane-wrapper {
-  display: flex;
-  flex-direction: column;
+.right-pane-preview {
   height: 100%;
   overflow: hidden;
 }
 
-.right-pane-preview {
+.right-pane-data {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.data-panel-header {
+  flex-shrink: 0;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.data-panel-header :deep(.el-tabs) {
+  --el-tabs-header-height: 36px;
+}
+
+.data-panel-header :deep(.el-tabs__header) {
+  margin: 0;
+}
+
+.data-panel-header :deep(.el-tabs__nav-wrap::after) {
+  display: none;
+}
+
+.data-panel-body {
   flex: 1;
   overflow: hidden;
   min-height: 0;
 }
 
-.right-pane-preview.has-variables {
-  flex: 1 1 60%;
-}
-
-.right-pane-variables {
-  flex: 0 0 35%;
-  min-height: 120px;
-  max-height: 50%;
-  border-top: 1px solid var(--el-border-color-lighter);
-  overflow: hidden;
+.template-dropdown {
+  width: 180px;
 }
 
 .app-statusbar {
